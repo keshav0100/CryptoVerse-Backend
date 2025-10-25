@@ -1,23 +1,20 @@
-# Use a valid Maven + JDK 17 base image
-FROM maven:3.8.7-eclipse-temurin-17 AS build
-
+# ---- Build stage ----
+FROM maven:3.9.6-eclipse-temurin-17 AS build
 WORKDIR /app
+
 COPY pom.xml .
+RUN mvn -q -DskipTests dependency:go-offline
+
 COPY src ./src
+RUN mvn -q -DskipTests clean package
 
-# Package the application
-RUN mvn clean package -DskipTests
-
-# Use a lightweight OpenJDK 17 image for running the app
-FROM openjdk:17-jdk-slim
-
+# ---- Run stage ----
+FROM eclipse-temurin:17-jre
 WORKDIR /app
 
-# Copy built jar from previous stage
-COPY --from=build /app/target/projectify-0.0.1-SNAPSHOT.jar app.jar
+# Copy any jar built from previous stage
+COPY --from=build /app/target/*.jar app.jar
 
-# Expose the port used by the app
-EXPOSE 5454
-
-# Run the app
-ENTRYPOINT ["java", "-jar", "app.jar", "--server.port=${PORT:-5454}"]
+# Render provides $PORT automatically
+ENV JAVA_OPTS="-Xms256m -Xmx512m"
+CMD ["sh","-c","java $JAVA_OPTS -jar app.jar --server.port=${PORT:-5454}"]
